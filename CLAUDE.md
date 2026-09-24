@@ -14,7 +14,7 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 | Fase | Estado |
 |---|---|
 | 1 — Base y seguridad | Hecha y confirmada |
-| 2 — Pacientes y agenda | **Hecha, a la espera de confirmación** |
+| 2 — Pacientes y agenda | **Hecha, a la espera de confirmación** (+ cancelación por el paciente con plazo por clínica) |
 | 3 — Invitaciones de pacientes y PWA | Pendiente |
 | 4 — Recordatorios | Pendiente |
 | 5 — Suscripciones y bloqueo | Pendiente (la RLS ya aplica los estados; falta cron, pagos y exportación) |
@@ -41,7 +41,14 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 - **Turnos**: al elegir el servicio se sugiere la duración y se filtran profesionales y recursos; asignación automática de un recurso libre del tipo requerido; control de horario de atención (se puede forzar con una casilla); mover/modificar; estados (confirmar, en sala, atendido, no asistió, cancelar).
 - **Reglas en la base** (trigger `validar_turno`): profesional y servicio activos, el profesional realiza el servicio, recurso del tipo requerido, bloqueos, paquete del mismo servicio, vigente y con sesiones. El descuento de sesiones al marcar "atendido" (y la devolución si se corrige) lo hace la base; `sesiones_usadas` no se edita a mano.
 - **Bloqueos de agenda** (admin y recepción): por profesional o por recurso; avisa si ya había turnos en ese período.
-- 75 tests: 61 de base (RLS, agenda, paquetes, búsqueda) + 14 unitarios (zona horaria, grilla, cédula, estados).
+- 86 tests: 72 de base (RLS, agenda, paquetes, búsqueda, cancelación por el paciente) + 14 unitarios (zona horaria, grilla, cédula, estados).
+
+### Cancelación de turnos por el paciente (pedido agregado)
+- Cada clínica elige el plazo en Configuración → Cancelaciones: 24, 48 (por defecto) o 72 horas antes del turno (`clinicas.horas_limite_cancelacion`).
+- La regla está en la base: `cancelar_mi_turno(turno)` solo cancela turnos propios, agendados/confirmados/con pedido de reprogramación, con la clínica activa o en gracia y dentro del plazo. Fuera de plazo devuelve: "Estás fuera de las horas posibles para cancelar. Los turnos se pueden cancelar hasta N horas antes. Comunicate con la clínica".
+- `mis_turnos()` le da a la app del paciente sus turnos (sin notas internas) con `puede_cancelar` y `cancelable_hasta`, para mostrar el botón bloqueado. **El botón en la app se construye en la fase 3.**
+- Recepción ve en la agenda un aviso con los turnos cancelados por pacientes, y en el turno/ficha si lo canceló el paciente y hasta cuándo puede hacerlo.
+- Columnas nuevas en `turnos`: `cancelado_en`, `cancelado_por_paciente` (este último solo lo puede marcar la función del paciente).
 
 ## Cómo correrlo localmente
 

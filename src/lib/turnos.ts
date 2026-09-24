@@ -44,3 +44,11 @@ export function esEstadoTurno(v: string): v is EstadoTurno {
 
 /** Cambios de estado que puede hacer un profesional sobre sus turnos (cancelar o reagendar es de recepción). */
 export const ESTADOS_PROFESIONAL: EstadoTurno[] = ["confirmado", "en_sala", "atendido", "no_asistio"];
+
+/** Opciones de plazo para que el paciente cancele desde la app (horas antes del turno). */
+export const OPCIONES_LIMITE_CANCELACION = [24, 48, 72];
+
+/** Momento límite para que el paciente cancele (misma regla que app.cancelable_hasta en la base). */
+export function cancelableHasta(inicio: string | Date, horas: number): Date {
+  return new Date(new Date(inicio).getTime() - horas * 3600_000);
+}

@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { EstadoTurnoInsignia } from "@/components/estado-turno";
 import { BotonAccion, Formulario } from "@/components/formulario";
-import { Tarjeta, Titulo } from "@/components/ui";
+import { Mensaje, Tarjeta, Titulo } from "@/components/ui";
 import { formatoCedula } from "@/lib/cedula";
 import { fechaLarga, partesLocales } from "@/lib/fechas";
 import { formatoFechaHora } from "@/lib/formato";
 import { exigirClinica, puedeEscribir, ROLES_GESTION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
-import { ESTADOS_PROFESIONAL, ETIQUETA_ACCION, TRANSICIONES, type EstadoTurno } from "@/lib/turnos";
+import { cancelableHasta, ESTADOS_PROFESIONAL, ETIQUETA_ACCION, TRANSICIONES, type EstadoTurno } from "@/lib/turnos";
 import { cambiarEstadoTurno, moverTurno } from "../acciones";
 import { CamposTurno } from "../campos-turno";
 import { opcionesTurno } from "../opciones";
@@ -25,6 +25,8 @@ type Turno = {
   estado: EstadoTurno;
   notas_internas: string | null;
   creado_en: string;
+  cancelado_en: string | null;
+  cancelado_por_paciente: boolean;
   pacientes: { nombre: string; apellido: string; cedula: string; celular: string | null } | null;
 };
 
@@ -40,6 +42,8 @@ export default async function DetalleTurno({ params }: { params: Promise<{ slug:
     .eq("clinica_id", clinica.clinica_id)
     .maybeSingle<Turno>();
   if (!t) notFound();
+  const { data: politica } = await supabase.from("clinicas").select("horas_limite_cancelacion").eq("id", clinica.clinica_id).single();
+  const horasLimite = politica?.horas_limite_cancelacion ?? 48;
 
   const { opciones, config } = await opcionesTurno(clinica.clinica_id, t.paciente_id, {
     profesional: t.profesional_id,
@@ -71,6 +75,11 @@ export default async function DetalleTurno({ params }: { params: Promise<{ slug:
         {servicio?.nombre}
       </Titulo>
 
+      {t.estado === "cancelado" && t.cancelado_en && (
+        <Mensaje tipo="alerta">
+          {t.cancelado_por_paciente ? "Lo canceló el paciente desde la app" : "Cancelado desde el panel"} ({formatoFechaHora(t.cancelado_en)})
+        </Mensaje>
+      )}
       <div className="grid gap-6 xl:grid-cols-2">
         <div className="flex flex-col gap-6">
           <Tarjeta className="grid gap-4 text-[15px] sm:grid-cols-2">
@@ -88,6 +97,16 @@ export default async function DetalleTurno({ params }: { params: Promise<{ slug:
             <Dato titulo="Duración" valor={`${duracion} minutos`} />
             <Dato titulo="Paquete" valor={paquete ? `Sesiones ${paquete.sesiones_usadas} de ${paquete.sesiones_totales}` : "No"} />
             <Dato titulo="Agendado" valor={formatoFechaHora(t.creado_en)} />
+            {["agendado", "confirmado", "reprogramar_solicitado"].includes(t.estado) && (
+              <Dato
+                titulo="El paciente puede cancelarlo desde la app"
+                valor={
+                  cancelableHasta(t.inicio, horasLimite) > new Date()
+                    ? `Hasta el ${formatoFechaHora(cancelableHasta(t.inicio, horasLimite).toISOString())} (${horasLimite} h antes)`
+                    : `Ya no (plazo de ${horasLimite} h vencido)`
+                }
+              />
+            )}
             {servicio?.indicaciones_previas && (
               <div className="sm:col-span-2">
                 <div className="text-[13px] font-semibold text-tinta-suave">Indicaciones previas</div>

@@ -60,7 +60,7 @@ export default async function FichaPaciente({
     cargarConfiguracion(clinica.clinica_id),
     supabase
       .from("turnos")
-      .select("id, inicio, estado, servicios(nombre), profesionales(nombre_visible)")
+      .select("id, inicio, estado, cancelado_por_paciente, servicios(nombre), profesionales(nombre_visible)")
       .eq("paciente_id", id)
       .order("inicio", { ascending: false })
       .limit(100),
@@ -83,6 +83,7 @@ export default async function FichaPaciente({
     id: string;
     inicio: string;
     estado: EstadoTurno;
+    cancelado_por_paciente: boolean;
     servicios: { nombre: string } | null;
     profesionales: { nombre_visible: string } | null;
   }[];
@@ -321,7 +322,14 @@ function ListaTurnos({
   vacio,
 }: {
   slug: string;
-  turnos: { id: string; inicio: string; estado: EstadoTurno; servicios: { nombre: string } | null; profesionales: { nombre_visible: string } | null }[];
+  turnos: {
+    id: string;
+    inicio: string;
+    estado: EstadoTurno;
+    cancelado_por_paciente: boolean;
+    servicios: { nombre: string } | null;
+    profesionales: { nombre_visible: string } | null;
+  }[];
   vacio: string;
 }) {
   if (turnos.length === 0) return <p className="text-[15px] text-tinta-suave">{vacio}</p>;
@@ -338,7 +346,10 @@ function ListaTurnos({
                 </span>{" "}
                 · {t.servicios?.nombre} · {t.profesionales?.nombre_visible}
               </span>
-              <EstadoTurnoInsignia estado={t.estado} />
+              <span className="flex items-center gap-2">
+                {t.cancelado_por_paciente && <span className="text-[13px] font-semibold text-alerta">por el paciente</span>}
+                <EstadoTurnoInsignia estado={t.estado} />
+              </span>
             </Link>
           </li>
         );

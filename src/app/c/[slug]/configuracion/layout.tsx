@@ -15,6 +15,7 @@ export default async function LayoutConfiguracion({
     { href: `/c/${slug}/configuracion/profesionales`, texto: "Profesionales y horarios" },
     { href: `/c/${slug}/configuracion/servicios`, texto: "Servicios" },
     { href: `/c/${slug}/configuracion/recursos`, texto: "Recursos" },
+    { href: `/c/${slug}/configuracion/turnos`, texto: "Cancelaciones" },
   ];
   return (
     <>

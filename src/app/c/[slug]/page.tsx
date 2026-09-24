@@ -66,7 +66,7 @@ export default async function Agenda({ params, searchParams }: { params: Promise
     .gt("fin", desde)
     .in("profesional_id", visibles.map((p) => p.id));
   if (recursoFiltro) consultaTurnos = consultaTurnos.eq("recurso_id", recursoFiltro.id);
-  const [{ data: turnosData }, { data: bloqueosData }] = await Promise.all([
+  const [{ data: turnosData }, { data: bloqueosData }, { data: canceladosData }] = await Promise.all([
     consultaTurnos,
     supabase
       .from("bloqueos_agenda")
@@ -74,7 +74,18 @@ export default async function Agenda({ params, searchParams }: { params: Promise
       .eq("clinica_id", clinica.clinica_id)
       .lt("desde", hasta)
       .gt("hasta", desde),
+    // Cancelaciones hechas por pacientes desde la app, para que recepción las vea.
+    supabase
+      .from("turnos")
+      .select("id, inicio, pacientes(nombre, apellido)")
+      .eq("clinica_id", clinica.clinica_id)
+      .eq("cancelado_por_paciente", true)
+      .lt("inicio", hasta)
+      .gt("fin", desde)
+      .in("profesional_id", visibles.map((p) => p.id))
+      .order("inicio"),
   ]);
+  const cancelados = (canceladosData ?? []) as unknown as { id: string; inicio: string; pacientes: { nombre: string; apellido: string } | null }[];
   const turnos = (turnosData ?? []) as unknown as FilaTurno[];
   const bloqueos = bloqueosData ?? [];
   const nombreRecurso = new Map(config.recursos.map((r) => [r.id, r.nombre]));
@@ -208,6 +219,21 @@ export default async function Agenda({ params, searchParams }: { params: Promise
             {piden > 0 && <span className="font-semibold text-alerta"> · {piden} piden reprogramar</span>}
             {recursoFiltro && ` · filtrando por ${recursoFiltro.nombre}`}
           </p>
+          {cancelados.length > 0 && (
+            <Mensaje tipo="alerta">
+              {cancelados.length === 1 ? "1 turno fue cancelado" : `${cancelados.length} turnos fueron cancelados`} por el paciente desde la app:{" "}
+              {cancelados.map((c, i) => (
+                <span key={c.id}>
+                  {i > 0 && ", "}
+                  <Link href={`/c/${slug}/turnos/${c.id}`} className="font-semibold underline">
+                    {c.pacientes?.nombre} {c.pacientes?.apellido} ({semana ? `${fechaCorta(partesLocales(c.inicio).fecha)} ` : ""}
+                    {partesLocales(c.inicio).hora})
+                  </Link>
+                </span>
+              ))}
+              . El horario quedó libre.
+            </Mensaje>
+          )}
           <Grilla
             slug={slug}
             rango={rango}

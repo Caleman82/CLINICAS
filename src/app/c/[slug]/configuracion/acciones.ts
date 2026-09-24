@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { mensajeError, type EstadoForm } from "@/lib/errores";
 import { horaAMinutos } from "@/lib/fechas";
+import { OPCIONES_LIMITE_CANCELACION } from "@/lib/turnos";
 import { autorizarEscritura } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -217,4 +218,24 @@ export async function editarRecurso(slug: string, id: string, _prev: EstadoForm,
   if (!data.length) return { error: "No se encontró el recurso." };
   refrescar(slug);
   return { ok: "Guardado." };
+}
+
+// ---------------------------------------------------------------------------
+// Política de turnos
+// ---------------------------------------------------------------------------
+export async function guardarLimiteCancelacion(slug: string, _prev: EstadoForm, fd: FormData): Promise<EstadoForm> {
+  const a = await autorizar(slug);
+  if (!a.ok) return { error: a.error };
+  const horas = Number(fd.get("horas_limite_cancelacion"));
+  if (!OPCIONES_LIMITE_CANCELACION.includes(horas)) return { error: "Elegí una de las opciones." };
+  const supabase = await crearClienteServidor();
+  const { data, error } = await supabase
+    .from("clinicas")
+    .update({ horas_limite_cancelacion: horas })
+    .eq("id", a.clinica.clinica_id)
+    .select("id");
+  if (error) return { error: mensajeError(error) };
+  if (!data.length) return { error: "No se pudo guardar." };
+  refrescar(slug);
+  return { ok: `Listo: los pacientes pueden cancelar desde la app hasta ${horas} horas antes del turno.` };
 }
