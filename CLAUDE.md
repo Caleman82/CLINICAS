@@ -89,6 +89,7 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 ## Estructura
 
 - `supabase/migrations/` — esquema, RLS, triggers, funciones. **Toda tabla nueva necesita RLS** (hay un test que falla si no).
+- `supabase/instalacion_completa.sql` — todas las migraciones unidas, para instalar pegando un solo archivo en el SQL Editor. **Regenerarlo con `scripts/unir-migraciones.sh` cada vez que se agrega una migración.**
 - `supabase/tests/supabase_shim.sql` — roles y esquema `auth` mínimos para correr los tests sobre Postgres común.
 - `tests/db/` — fixture con dos clínicas completas y tests. `como(db, usuario, fn)` ejecuta como lo haría PostgREST.
 - `src/lib/supabase/` — `server.ts` (con sesión, pasa por RLS) y `admin.ts` (service_role, **solo servidor**, importa `server-only`).
