@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ComponentProps, ReactNode } from "react";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -112,4 +113,70 @@ export function Insignia({ children, tono = "neutro" }: { children: ReactNode; t
       {children}
     </span>
   );
+}
+
+export function AreaTexto({ etiqueta, id, ayuda, ...props }: ComponentProps<"textarea"> & { etiqueta: string; id: string; ayuda?: string }) {
+  return (
+    <div className="flex flex-col gap-2">
+      <label htmlFor={id} className="text-sm font-semibold">
+        {etiqueta}
+      </label>
+      <textarea
+        id={id}
+        rows={3}
+        {...props}
+        className="rounded-[10px] border border-borde-campo bg-superficie px-3.5 py-2.5 text-base text-tinta focus:border-marca focus:outline-2 focus:outline-marca/30"
+      />
+      {ayuda && <p className="text-[13px] text-tinta-suave">{ayuda}</p>}
+    </div>
+  );
+}
+
+export function Casilla({ etiqueta, id, ...props }: ComponentProps<"input"> & { etiqueta: ReactNode; id: string }) {
+  return (
+    <label htmlFor={id} className="flex items-start gap-3 text-[15px] leading-snug">
+      <input id={id} type="checkbox" {...props} className="mt-0.5 size-5 shrink-0 accent-marca" />
+      <span>{etiqueta}</span>
+    </label>
+  );
+}
+
+export function Titulo({ children, detalle, acciones }: { children: ReactNode; detalle?: ReactNode; acciones?: ReactNode }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-col gap-1">
+        {detalle && <div className="text-sm font-semibold text-tinta-suave first-letter:uppercase">{detalle}</div>}
+        <h1 className="font-display text-[30px] leading-tight font-semibold sm:text-[34px]">{children}</h1>
+      </div>
+      {acciones && <div className="flex flex-wrap gap-3">{acciones}</div>}
+    </div>
+  );
+}
+
+export function EnlaceBoton({
+  href,
+  children,
+  variante = "primario",
+}: {
+  href: string;
+  children: ReactNode;
+  variante?: "primario" | "secundario" | "oscuro";
+}) {
+  return (
+    <Link
+      href={href}
+      className={cx(
+        "inline-flex h-11 items-center justify-center rounded-[10px] px-5 text-[15px] font-semibold transition-colors",
+        variante === "primario" && "bg-marca text-white hover:bg-marca-oscura",
+        variante === "oscuro" && "bg-tinta text-white hover:bg-tinta-media",
+        variante === "secundario" && "border border-borde-campo bg-superficie text-tinta hover:bg-fondo",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+export function Vacio({ children }: { children: ReactNode }) {
+  return <p className="py-6 text-center text-[15px] text-tinta-suave">{children}</p>;
 }

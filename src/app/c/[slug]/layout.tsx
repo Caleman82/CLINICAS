@@ -19,13 +19,14 @@ export default async function LayoutClinica({
   }
 
   const esAdmin = clinica.rol === "admin_clinica";
-  const enlaces = [
+  const enlaces: { href: string; texto: string; pronto?: boolean }[] = [
     { href: `/c/${slug}`, texto: "Agenda" },
-    { href: `/c/${slug}/pacientes`, texto: "Pacientes", pronto: true },
+    { href: `/c/${slug}/pacientes`, texto: "Pacientes" },
+    ...(clinica.rol !== "profesional" ? [{ href: `/c/${slug}/bloqueos`, texto: "Bloqueos" }] : []),
     ...(esAdmin
       ? [
           { href: `/c/${slug}/equipo`, texto: "Equipo" },
-          { href: `/c/${slug}/configuracion`, texto: "Configuración", pronto: true },
+          { href: `/c/${slug}/configuracion`, texto: "Configuración" },
         ]
       : []),
   ];

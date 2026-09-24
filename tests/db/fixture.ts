@@ -118,7 +118,7 @@ export async function cargarFixture(db: Client) {
     await db.query("insert into public.avisos (clinica_id, titulo, texto) values ($1, 'Aviso', 'Cerramos el feriado')", [clinica]);
     await db.query("insert into public.plantillas_mensaje (clinica_id, tipo, canal, texto, horas_antes) values ($1, 'recordatorio', 'whatsapp', 'Te esperamos', 24)", [clinica]);
     await db.query("insert into public.pagos_suscripcion (clinica_id, monto, periodo, fecha_pago) values ($1, 1000, '2026-09-01', '2026-09-01')", [clinica]);
-    await db.query("insert into public.bloqueos_agenda (clinica_id, recurso_id, desde, hasta, motivo) select $1, id, now(), now() + interval '1 hour', 'Mantenimiento' from public.recursos where clinica_id = $1", [clinica]);
+    await db.query("insert into public.bloqueos_agenda (clinica_id, recurso_id, desde, hasta, motivo) select $1, id, '2026-12-24T09:00:00-03:00', '2026-12-24T18:00:00-03:00', 'Mantenimiento' from public.recursos where clinica_id = $1", [clinica]);
     await db.query("insert into public.horarios_profesional (clinica_id, profesional_id, dia_semana, hora_inicio, hora_fin) select $1, id, 1, '09:00', '17:00' from public.profesionales where clinica_id = $1", [clinica]);
     await db.query("insert into public.servicio_profesional (clinica_id, servicio_id, profesional_id) select $1, s.id, p.id from public.servicios s, public.profesionales p where s.clinica_id = $1 and p.clinica_id = $1", [clinica]);
     await db.query("insert into public.mensajes (clinica_id, paciente_id, canal, estado) select $1, id, 'whatsapp', 'enviado' from public.pacientes where clinica_id = $1", [clinica]);

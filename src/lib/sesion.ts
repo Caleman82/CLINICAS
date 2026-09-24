@@ -71,3 +71,28 @@ export function destinoInicial(ctx: Contexto): string {
   if (ctx.clinicas.length > 1) return "/elegir-clinica";
   return "/sin-acceso";
 }
+
+export const ROLES_GESTION: Rol[] = ["admin_clinica", "recepcion"];
+
+/** activa y gracia permiten escribir; solo_lectura y suspendida no (la base lo aplica igual). */
+export function puedeEscribir(clinica: ClinicaDelUsuario): boolean {
+  return clinica.estado_suscripcion === "activa" || clinica.estado_suscripcion === "gracia";
+}
+
+export const MENSAJE_SOLO_LECTURA = "La clínica está en modo solo lectura por un pago pendiente.";
+
+/**
+ * Para Server Actions: verifica membresía, rol y que la clínica admita escritura.
+ * Devuelve el error como texto en lugar de redirigir.
+ */
+export async function autorizarEscritura(
+  slug: string,
+  roles: Rol[],
+): Promise<{ ok: true; ctx: Contexto; clinica: ClinicaDelUsuario } | { ok: false; error: string }> {
+  const ctx = await obtenerContexto();
+  if (!ctx) return { ok: false, error: "Tu sesión venció. Volvé a ingresar." };
+  const clinica = ctx.clinicas.find((c) => c.slug === slug);
+  if (!clinica || !roles.includes(clinica.rol)) return { ok: false, error: "No tenés permiso para hacer esto." };
+  if (!puedeEscribir(clinica)) return { ok: false, error: MENSAJE_SOLO_LECTURA };
+  return { ok: true, ctx, clinica };
+}

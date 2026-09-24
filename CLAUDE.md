@@ -13,8 +13,8 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 
 | Fase | Estado |
 |---|---|
-| 1 — Base y seguridad | **Hecha, a la espera de confirmación** |
-| 2 — Pacientes y agenda | Pendiente (el esquema, la RLS y la regla de superposición ya están) |
+| 1 — Base y seguridad | Hecha y confirmada |
+| 2 — Pacientes y agenda | **Hecha, a la espera de confirmación** |
 | 3 — Invitaciones de pacientes y PWA | Pendiente |
 | 4 — Recordatorios | Pendiente |
 | 5 — Suscripciones y bloqueo | Pendiente (la RLS ya aplica los estados; falta cron, pagos y exportación) |
@@ -33,6 +33,15 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 - Panel del proveedor: listado de clínicas, alta de clínica + primer admin, agregar admins, generar enlaces.
 - Panel de la clínica: estructura, avisos de gracia/solo lectura, pantalla de acceso pausado, gestión del equipo.
 - 48 tests (Vitest + Postgres) de aislamiento, roles, suscripción, agenda y auditoría. CI en GitHub Actions.
+
+### Qué incluye la fase 2
+- **Configuración (admin)**: profesionales (color, especialidad, usuario vinculado, activo), qué servicios realiza cada uno, horarios de atención por día; servicios (duración, precio, recurso requerido, indicaciones previas); recursos con tipo.
+- **Pacientes**: alta con consentimiento obligatorio (Ley 18.331, se guarda fecha y hora), cédula validada con dígito verificador, búsqueda por nombre (sin tildes, palabras en cualquier orden), cédula o celular. Ficha con datos, acceso a la app (desactivar/reactivar), paquetes con progreso, datos adicionales (campos personalizados, si hay), turnos próximos e historial, mensajes, notas clínicas (solo admin y profesional). Abrir una ficha queda en la auditoría.
+- **Agenda**: vista día (columnas por profesional) y semana (un profesional), filtros por profesional y recurso, horario de atención sombreado, bloqueos rayados, línea de hora actual, clic en un hueco para agendar.
+- **Turnos**: al elegir el servicio se sugiere la duración y se filtran profesionales y recursos; asignación automática de un recurso libre del tipo requerido; control de horario de atención (se puede forzar con una casilla); mover/modificar; estados (confirmar, en sala, atendido, no asistió, cancelar).
+- **Reglas en la base** (trigger `validar_turno`): profesional y servicio activos, el profesional realiza el servicio, recurso del tipo requerido, bloqueos, paquete del mismo servicio, vigente y con sesiones. El descuento de sesiones al marcar "atendido" (y la devolución si se corrige) lo hace la base; `sesiones_usadas` no se edita a mano.
+- **Bloqueos de agenda** (admin y recepción): por profesional o por recurso; avisa si ya había turnos en ese período.
+- 75 tests: 61 de base (RLS, agenda, paquetes, búsqueda) + 14 unitarios (zona horaria, grilla, cédula, estados).
 
 ## Cómo correrlo localmente
 
@@ -64,8 +73,11 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 - `tests/db/` — fixture con dos clínicas completas y tests. `como(db, usuario, fn)` ejecuta como lo haría PostgREST.
 - `src/lib/supabase/` — `server.ts` (con sesión, pasa por RLS) y `admin.ts` (service_role, **solo servidor**, importa `server-only`).
 - `src/lib/invitaciones.ts` — alta de miembros y enlaces de activación.
-- `src/lib/sesion.ts` — contexto del usuario (`mis_clinicas()`), guardas `exigirSuperadmin` / `exigirClinica`.
-- `src/app/` — `ingresar`, `activar/[token]`, `proveedor/…`, `c/[slug]/…` (panel de la clínica).
+- `src/lib/sesion.ts` — contexto del usuario (`mis_clinicas()`), guardas `exigirSuperadmin` / `exigirClinica`, `autorizarEscritura` para Server Actions.
+- `src/lib/fechas.ts` — conversión hora local ↔ instante, calendario y cálculo de la grilla (con tests en `tests/unit`).
+- `src/lib/errores.ts` — traduce errores de la base (superposición, reglas, RLS) a mensajes para el usuario.
+- `src/components/formulario.tsx` — `Formulario` y `BotonAccion` para Server Actions (no vacía los campos si hay error).
+- `src/app/` — `ingresar`, `activar/[token]`, `proveedor/…`, `c/[slug]/…` (panel de la clínica: agenda en `page.tsx` + `_agenda/`, `pacientes/`, `turnos/`, `bloqueos/`, `equipo/`, `configuracion/`).
 - `docs/produccion.md` — configuración de Supabase/Vercel, backups y restauración, checklist de seguridad.
 
 ## Decisiones tomadas (fase 1)
@@ -83,6 +95,17 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 11. El admin no puede modificar su propia membresía (evita autobloqueo).
 12. Hasta tener email/WhatsApp (fases 3–4) los enlaces se muestran para **copiar y enviar a mano**.
 13. Autoría en auditoría para operaciones del servidor: header `x-actor-id`, aceptado solo con JWT de service_role.
+
+## Decisiones tomadas (fase 2)
+
+14. **Cédula validada con dígito verificador** (formato uruguayo). Un paciente extranjero sin cédula no se puede cargar todavía: a definir si se admite documento alternativo.
+15. **Horario de atención**: si el profesional tiene horarios cargados, un turno fuera de ellos requiere marcar "Agendar fuera del horario". Si no tiene horarios, no se controla.
+16. **Servicio ↔ profesional**: si un servicio no tiene profesionales asignados, lo puede hacer cualquiera.
+17. **Recurso**: si el servicio requiere un tipo de recurso y no se elige uno, se asigna el primero libre de ese tipo.
+18. **Turnos cancelados** no ocupan lugar y no se muestran en la grilla (sí en la ficha del paciente). Los "no asistió" sí ocupan su lugar.
+19. **Solo se mueven** turnos agendados, confirmados o con pedido de reprogramación. El profesional puede cambiar el estado de sus turnos (confirmar, en sala, atendido, no asistió) pero no cancelarlos ni moverlos; eso es de recepción.
+20. Un bloqueo nuevo **no cancela** los turnos que ya había en ese período: avisa cuántos hay para revisarlos.
+21. La zona horaria usada es `America/Montevideo` para todas las clínicas (el campo `zona_horaria` existe pero todavía no se usa en la interfaz).
 
 ## Pendientes de definir (sección 13 y otros)
 
