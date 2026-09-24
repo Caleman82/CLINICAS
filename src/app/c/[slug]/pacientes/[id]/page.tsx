@@ -11,6 +11,7 @@ import { exigirClinica, puedeEscribir, ROLES_GESTION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 import type { EstadoTurno } from "@/lib/turnos";
 import { agregarNota, cambiarAccesoPaciente, crearPaquete, guardarCampos } from "../acciones";
+import { InvitarPaciente } from "./invitacion";
 
 type Paciente = {
   id: string;
@@ -75,6 +76,16 @@ export default async function FichaPaciente({
     supabase.from("valores_campos").select("campo_id, valor").eq("paciente_id", id),
     misProfesionales(clinica.clinica_id, ctx.userId),
   ]);
+  const { data: invitacion } = gestion
+    ? await supabase
+        .from("invitaciones")
+        .select("vence_en, creado_en")
+        .eq("paciente_id", id)
+        .is("usada_en", null)
+        .order("creado_en", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
 
   const nombreServicio = new Map(config.servicios.map((s) => [s.id, s.nombre]));
   const referencia = config.profesionales.find((x) => x.id === p.profesional_referencia_id);
@@ -129,13 +140,24 @@ export default async function FichaPaciente({
           <Tarjeta className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">Acceso a la app</h2>
             {p.estado_acceso === "invitado" && (
-              <p className="text-[15px] text-tinta-media">
-                Todavía no activó su cuenta. El envío de la invitación por WhatsApp o email llega en la fase 3.
-              </p>
+              <>
+                <p className="text-[15px] text-tinta-media">
+                  {invitacion
+                    ? new Date(invitacion.vence_en) > new Date()
+                      ? `Invitación enviada; el enlace vence el ${formatoFechaHora(invitacion.vence_en)}.`
+                      : "La invitación venció sin usarse. Enviale una nueva."
+                    : "Todavía no se le envió la invitación a la app."}{" "}
+                  Su usuario será su cédula.
+                </p>
+                {gestion && (
+                  <InvitarPaciente slug={slug} pacienteId={id} texto={invitacion ? "Reenviar invitación" : "Enviar invitación"} deshabilitado={!escribe} />
+                )}
+              </>
             )}
             {p.estado_acceso === "activo" && (
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <Insignia tono="marca">Activo</Insignia>
+                {gestion && <InvitarPaciente slug={slug} pacienteId={id} texto="Enviar enlace para nueva contraseña" deshabilitado={!escribe} />}
                 {gestion && (
                   <BotonAccion
                     accion={cambiarAccesoPaciente.bind(null, slug, id, "desactivado")}

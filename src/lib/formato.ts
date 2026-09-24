@@ -14,5 +14,13 @@ export function formatoFecha(fecha: string | null | undefined): string {
 
 export function formatoFechaHora(instante: string | null | undefined): string {
   if (!instante) return "—";
-  return new Intl.DateTimeFormat("es-UY", { timeZone: ZONA, dateStyle: "short", timeStyle: "short" }).format(new Date(instante));
+  return new Intl.DateTimeFormat("es-UY", {
+    timeZone: ZONA,
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(new Date(instante));
 }

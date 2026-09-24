@@ -14,8 +14,8 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 | Fase | Estado |
 |---|---|
 | 1 — Base y seguridad | Hecha y confirmada |
-| 2 — Pacientes y agenda | **Hecha, a la espera de confirmación** (+ cancelación por el paciente con plazo por clínica) |
-| 3 — Invitaciones de pacientes y PWA | Pendiente |
+| 2 — Pacientes y agenda | Hecha y confirmada (+ cancelación por el paciente con plazo por clínica) |
+| 3 — Invitaciones de pacientes y PWA | **Hecha, a la espera de confirmación** |
 | 4 — Recordatorios | Pendiente |
 | 5 — Suscripciones y bloqueo | Pendiente (la RLS ya aplica los estados; falta cron, pagos y exportación) |
 | 6 — Configuración avanzada y pulido | Pendiente |
@@ -41,7 +41,7 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 - **Turnos**: al elegir el servicio se sugiere la duración y se filtran profesionales y recursos; asignación automática de un recurso libre del tipo requerido; control de horario de atención (se puede forzar con una casilla); mover/modificar; estados (confirmar, en sala, atendido, no asistió, cancelar).
 - **Reglas en la base** (trigger `validar_turno`): profesional y servicio activos, el profesional realiza el servicio, recurso del tipo requerido, bloqueos, paquete del mismo servicio, vigente y con sesiones. El descuento de sesiones al marcar "atendido" (y la devolución si se corrige) lo hace la base; `sesiones_usadas` no se edita a mano.
 - **Bloqueos de agenda** (admin y recepción): por profesional o por recurso; avisa si ya había turnos en ese período.
-- 86 tests: 72 de base (RLS, agenda, paquetes, búsqueda, cancelación por el paciente) + 14 unitarios (zona horaria, grilla, cédula, estados).
+- Tests: ver la sección de la fase 3 para el total actualizado.
 
 ### Cancelación de turnos por el paciente (pedido agregado)
 - Cada clínica elige el plazo en Configuración → Cancelaciones: 24, 48 (por defecto) o 72 horas antes del turno (`clinicas.horas_limite_cancelacion`).
@@ -49,6 +49,19 @@ Primer cliente: CEMER. Nombre del producto: **a definir**.
 - `mis_turnos()` le da a la app del paciente sus turnos (sin notas internas) con `puede_cancelar` y `cancelable_hasta`, para mostrar el botón bloqueado. **El botón en la app se construye en la fase 3.**
 - Recepción ve en la agenda un aviso con los turnos cancelados por pacientes, y en el turno/ficha si lo canceló el paciente y hasta cuándo puede hacerlo.
 - Columnas nuevas en `turnos`: `cancelado_en`, `cancelado_por_paciente` (este último solo lo puede marcar la función del paciente).
+
+### Qué incluye la fase 3
+- **Invitación del paciente** desde su ficha (admin y recepción): enlace de un solo uso, 72 h, hash en la base, cada reenvío invalida el anterior. Se envía por email si el paciente tiene email y Resend está configurado; si no, se copia o se abre un chat de WhatsApp con el mensaje escrito (`wa.me`, envío manual hasta la API de la fase 4). Con el acceso activo, el mismo botón manda un enlace para una nueva contraseña.
+- **Activación**: el paciente crea su contraseña (mín. 8 con un número). Se crea su identidad técnica `p-<cédula>@<slug>.pacientes.invalid`, exclusiva de esa clínica, y la ficha pasa a `activo`.
+- **Ingreso con cédula + contraseña** en `/p/<slug>/ingresar`, con límite de intentos. El mensaje de error es el mismo si la cédula no existe, no activó o la clave es incorrecta (no revela quién es paciente). La identidad se busca por la ficha, así sigue funcionando si la clínica corrige la cédula.
+- **App del paciente (PWA)** en `/p/<slug>`, con el nombre y el color de la clínica (oscurecido automáticamente si no contrasta con texto blanco):
+  - Inicio: próximo turno con indicaciones previas y botones Confirmo / Necesito reprogramar / Cancelar turno (bloqueado con el aviso si está fuera de plazo), paquetes activos con progreso, avisos de la clínica, contacto.
+  - Mis turnos: próximos y anteriores/cancelados.
+  - Instalable: manifest e ícono por clínica, service worker sin caché de datos, sugerencia para instalar.
+  - Clínica suspendida: aviso para comunicarse con la clínica, con su contacto.
+- **Reglas en la base**: `confirmar_mi_turno`, `pedir_reprogramacion_mi_turno` (y `cancelar_mi_turno`) validan turno propio, futuro, estado y clínica habilitada. `mi_clinica()` da solo marca y contacto. La agenda refleja los cambios al instante ("Confirmado", "Pide reprogramar", aviso de cancelación).
+- Horas mostradas en formato de 24 h.
+- 101 tests: 80 de base (RLS, agenda, paquetes, búsqueda, cancelación y acciones del paciente) + 21 unitarios.
 
 ## Cómo correrlo localmente
 
@@ -79,7 +92,10 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 - `supabase/tests/supabase_shim.sql` — roles y esquema `auth` mínimos para correr los tests sobre Postgres común.
 - `tests/db/` — fixture con dos clínicas completas y tests. `como(db, usuario, fn)` ejecuta como lo haría PostgREST.
 - `src/lib/supabase/` — `server.ts` (con sesión, pasa por RLS) y `admin.ts` (service_role, **solo servidor**, importa `server-only`).
-- `src/lib/invitaciones.ts` — alta de miembros y enlaces de activación.
+- `src/lib/invitaciones.ts` — alta de miembros y enlaces de activación del equipo.
+- `src/lib/invitaciones-paciente.ts` — invitación, activación y renovación de clave de pacientes.
+- `src/lib/sesion-paciente.ts` — marca pública de la clínica y guarda `exigirPaciente`.
+- `src/app/p/[slug]/` — app del paciente (ingresar, activar, inicio, mis turnos, manifest, ícono).
 - `src/lib/sesion.ts` — contexto del usuario (`mis_clinicas()`), guardas `exigirSuperadmin` / `exigirClinica`, `autorizarEscritura` para Server Actions.
 - `src/lib/fechas.ts` — conversión hora local ↔ instante, calendario y cálculo de la grilla (con tests en `tests/unit`).
 - `src/lib/errores.ts` — traduce errores de la base (superposición, reglas, RLS) a mensajes para el usuario.
@@ -113,6 +129,14 @@ Otros comandos: `npm run lint`, `npm run typecheck`, `npm run build`.
 19. **Solo se mueven** turnos agendados, confirmados o con pedido de reprogramación. El profesional puede cambiar el estado de sus turnos (confirmar, en sala, atendido, no asistió) pero no cancelarlos ni moverlos; eso es de recepción.
 20. Un bloqueo nuevo **no cancela** los turnos que ya había en ese período: avisa cuántos hay para revisarlos.
 21. La zona horaria usada es `America/Montevideo` para todas las clínicas (el campo `zona_horaria` existe pero todavía no se usa en la interfaz).
+
+## Decisiones tomadas (fase 3)
+
+22. **Un solo proyecto Next.js**: la app del paciente vive en `/p/<slug>` (confirmado al avanzar a la fase 3).
+23. El paciente **puede volver a confirmar** después de pedir reprogramación, y pedir reprogramación hasta el inicio del turno (sin plazo).
+24. Si alguien del equipo abre `/p/<slug>` con su sesión, se le pide ingresar como paciente: nunca ve fichas desde la app.
+25. El logo de la clínica se usará cuando se pueda subir (fase 6); mientras, el ícono es la inicial sobre su color.
+26. Los emails de invitación no incluyen información clínica; el mensaje de WhatsApp tampoco.
 
 ## Pendientes de definir (sección 13 y otros)
 

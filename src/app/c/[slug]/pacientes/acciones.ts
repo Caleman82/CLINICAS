@@ -7,6 +7,8 @@ import { cedulaValida, normalizarCedula, normalizarCelular } from "@/lib/cedula"
 import { misProfesionales } from "@/lib/datos-clinica";
 import { mensajeError, type EstadoForm } from "@/lib/errores";
 import { esFecha, hoy } from "@/lib/fechas";
+import { invitarPaciente } from "@/lib/invitaciones-paciente";
+import { enlaceWhatsApp } from "@/lib/whatsapp";
 import { autorizarEscritura, ROLES_GESTION } from "@/lib/sesion";
 import { crearClienteServidor } from "@/lib/supabase/server";
 
@@ -153,4 +155,35 @@ export async function guardarCampos(slug: string, pacienteId: string, _prev: Est
   if (error) return { error: mensajeError(error) };
   revalidatePath(`/c/${slug}/pacientes/${pacienteId}`);
   return { ok: "Datos guardados." };
+}
+
+export type EstadoInvitacion = EstadoForm & { enlace?: string; whatsapp?: string | null; emailEnviado?: boolean; email?: string | null };
+
+export async function invitarPacienteApp(slug: string, id: string, _prev: EstadoInvitacion): Promise<EstadoInvitacion> {
+  const a = await autorizarEscritura(slug, ROLES_GESTION);
+  if (!a.ok) return { error: a.error };
+  // Verificación con la sesión del usuario (RLS): el paciente es de su clínica.
+  const supabase = await crearClienteServidor();
+  const { data: p } = await supabase.from("pacientes").select("id").eq("id", id).eq("clinica_id", a.clinica.clinica_id).maybeSingle();
+  if (!p) return { error: "No se encontró el paciente." };
+
+  const r = await invitarPaciente({
+    clinicaId: a.clinica.clinica_id,
+    slug,
+    clinicaNombre: a.clinica.nombre,
+    pacienteId: id,
+    creadoPor: a.ctx.userId,
+  });
+  if (!r.ok) return { error: r.error };
+  revalidatePath(`/c/${slug}/pacientes/${id}`);
+  const texto = r.renovacion
+    ? `Hola ${r.nombre}, te enviamos el enlace para crear una nueva contraseña en la app de ${a.clinica.nombre} (vence en 72 horas y sirve una sola vez): ${r.enlace}`
+    : `Hola ${r.nombre}, ${a.clinica.nombre} te invita a su app para ver y confirmar tus turnos. Creá tu contraseña en este enlace (vence en 72 horas y sirve una sola vez): ${r.enlace}\nTu usuario es tu cédula.`;
+  return {
+    ok: r.emailEnviado ? `Enviamos el enlace por email a ${r.email}.` : "Enlace generado. El anterior dejó de funcionar.",
+    enlace: r.enlace,
+    whatsapp: enlaceWhatsApp(r.celular, texto),
+    emailEnviado: r.emailEnviado,
+    email: r.email,
+  };
 }

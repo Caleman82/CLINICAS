@@ -44,8 +44,23 @@ Variables de entorno (Production y Preview, **nunca** en el repositorio):
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY` (solo servidor; no usar prefijo `NEXT_PUBLIC_`)
 - `APP_URL` (ej. `https://panel.<dominio>`)
+- `RESEND_API_KEY`, `EMAIL_FROM` (opcional; ver abajo)
 
 Solo HTTPS: Vercel lo fuerza; además la app envía `Strict-Transport-Security`.
+
+## Email (Resend)
+
+1. Crear cuenta en Resend y verificar el dominio de envío (registros SPF/DKIM en el DNS).
+2. Cargar `RESEND_API_KEY` y `EMAIL_FROM` en Vercel.
+3. Probar: desde la ficha de un paciente de prueba con email, "Enviar invitación". El envío queda en el historial de mensajes de la ficha.
+
+Los emails nunca incluyen información clínica: solo el enlace de activación.
+
+## App del paciente (PWA)
+
+- Dirección para cada clínica: `https://<dominio>/p/<slug>` (ej. `/p/cemer`). Es la que se comparte con los pacientes.
+- Se instala desde el navegador (Android: botón "Instalar la app"; iPhone: Compartir → Agregar a pantalla de inicio). Requiere HTTPS.
+- El service worker (`public/sw.js`) **no guarda datos de pacientes en el celular**: solo una pantalla "sin conexión".
 
 ## Backups y restauración
 
