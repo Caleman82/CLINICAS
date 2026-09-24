@@ -455,3 +455,58 @@ describe("auditoría", () => {
     }
   });
 });
+
+describe("mis_clinicas()", () => {
+  it("devuelve solo las clínicas donde el usuario tiene membresía activa", async () => {
+    await como(db, F.recepA, async (q) => {
+      const filas = await q.filas<{ clinica_id: string; rol: string }>("select clinica_id, rol from public.mis_clinicas()");
+      expect(filas).toEqual([{ clinica_id: F.clinicaA, rol: "recepcion" }]);
+    });
+    await como(db, F.pacienteA1, async (q) => {
+      expect(await q.cuenta("select 1 from public.mis_clinicas()")).toBe(0);
+    });
+  });
+
+  it("informa el estado aunque la clínica esté suspendida", async () => {
+    await db.query("begin");
+    try {
+      await db.query("update public.clinicas set estado_suscripcion = 'suspendida' where id = $1", [F.clinicaA]);
+      await db.query("set local role authenticated");
+      await db.query(`select set_config('request.jwt.claims', $1, true)`, [JSON.stringify({ sub: F.recepA.id })]);
+      const r = await db.query("select estado_suscripcion from public.mis_clinicas()");
+      expect(r.rows).toEqual([{ estado_suscripcion: "suspendida" }]);
+    } finally {
+      await db.query("rollback");
+    }
+  });
+});
+
+describe("autor de auditoría en operaciones del servidor", () => {
+  const conClaims = async (claims: object, headers: object, fn: () => Promise<void>) => {
+    await db.query("begin");
+    try {
+      await db.query(`select set_config('request.jwt.claims', $1, true), set_config('request.headers', $2, true)`, [
+        JSON.stringify(claims), JSON.stringify(headers),
+      ]);
+      await fn();
+    } finally {
+      await db.query("rollback");
+    }
+  };
+  const ultimoAutor = async () =>
+    (await db.query("select user_id from public.auditoria order by id desc limit 1")).rows[0].user_id;
+
+  it("con service_role toma el autor del header x-actor-id", async () => {
+    await conClaims({ role: "service_role" }, { "x-actor-id": F.adminA.id }, async () => {
+      await db.query("update public.membresias set rol = 'profesional' where user_id = $1", [F.recepA.id]);
+      expect(await ultimoAutor()).toBe(F.adminA.id);
+    });
+  });
+
+  it("un cliente no puede falsificar el autor con el header", async () => {
+    await conClaims({ sub: F.adminA.id, role: "authenticated" }, { "x-actor-id": F.adminB.id }, async () => {
+      await db.query("update public.membresias set rol = 'profesional' where user_id = $1", [F.recepA.id]);
+      expect(await ultimoAutor()).toBe(F.adminA.id);
+    });
+  });
+});
